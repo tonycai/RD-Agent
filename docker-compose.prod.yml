@@ -1,0 +1,87 @@
+# Production-specific Docker Compose configuration
+version: '3.8'
+
+services:
+  rdagent-gateway:
+    build:
+      target: production
+    environment:
+      # Production settings
+      - RD_AGENT_DEBUG=false
+      - RD_AGENT_LOG_LEVEL=WARNING
+      - RD_AGENT_AUTH_ENABLED=true
+      - RD_AGENT_CORS_ORIGINS=${ALLOWED_ORIGINS:-https://yourdomain.com}
+      - RD_AGENT_RATE_LIMIT_ENABLED=true
+      - RD_AGENT_RATE_LIMIT_REQUESTS=100
+      - RD_AGENT_RATE_LIMIT_WINDOW=60
+      - RD_AGENT_MAX_STEPS=5
+    volumes:
+      # Production volumes (no source code mounting)
+      - /var/run/docker.sock:/var/run/docker.sock
+      - rdagent-data:/app/data
+      - rdagent-logs:/app/log
+    restart: always
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+
+  rdagent-ui:
+    environment:
+      - RD_AGENT_LOG_LEVEL=WARNING
+    volumes:
+      - rdagent-logs:/app/log
+    restart: always
+
+  # Production database
+  postgres:
+    image: postgres:15-alpine
+    container_name: rdagent-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-rdagent}
+      - POSTGRES_USER=${POSTGRES_USER:-rdagent}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rdagent}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - rdagent-network
+
+  # Production backup service
+  backup:
+    image: postgres:15-alpine
+    container_name: rdagent-backup
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-rdagent}
+      - POSTGRES_USER=${POSTGRES_USER:-rdagent}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - BACKUP_RETENTION_DAYS=7
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - backup-data:/backup
+      - ./docker/backup/backup.sh:/backup.sh:ro
+    command: ["sh", "-c", "while true; do sleep 86400; /backup.sh; done"]
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    networks:
+      - rdagent-network
+
+volumes:
+  postgres-data:
+    driver: local
+  backup-data:
+    driver: local

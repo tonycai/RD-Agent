@@ -1,0 +1,33 @@
+# Minimal Docker Compose configuration for quick testing
+version: '3.8'
+
+services:
+  # Gateway only (no UI, monitoring, etc.)
+  rdagent-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: gateway
+    container_name: rdagent-gateway-minimal
+    ports:
+      - "8000:8000"
+    environment:
+      - RD_AGENT_HOST=0.0.0.0
+      - RD_AGENT_PORT=8000
+      - RD_AGENT_DEBUG=false
+      - RD_AGENT_AUTH_ENABLED=false
+      - RD_AGENT_LOG_LEVEL=INFO
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - CHAT_MODEL=${CHAT_MODEL:-gpt-4o}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-small}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  default:
+    driver: bridge

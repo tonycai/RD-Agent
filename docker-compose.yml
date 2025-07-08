@@ -1,0 +1,202 @@
+version: '3.8'
+
+services:
+  # RD-Agent Gateway (OpenAI-compatible API)
+  rdagent-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: rdagent-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      # Server Configuration
+      - RD_AGENT_HOST=0.0.0.0
+      - RD_AGENT_PORT=8000
+      - RD_AGENT_DEBUG=false
+      
+      # Authentication
+      - RD_AGENT_AUTH_ENABLED=${RD_AGENT_AUTH_ENABLED:-false}
+      - RD_AGENT_API_KEY=${RD_AGENT_API_KEY:-}
+      
+      # CORS
+      - RD_AGENT_CORS_ENABLED=true
+      - RD_AGENT_CORS_ORIGINS=*
+      
+      # RD-Agent Settings
+      - RD_AGENT_DEFAULT_SCENARIO=data_science
+      - RD_AGENT_DEFAULT_COMPETITION=sf-crime
+      - RD_AGENT_MAX_STEPS=10
+      
+      # Logging
+      - RD_AGENT_LOG_LEVEL=INFO
+      
+      # LLM Configuration
+      - CHAT_MODEL=${CHAT_MODEL:-gpt-4o}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-small}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_API_BASE=${OPENAI_API_BASE:-}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - LITELLM_PROXY_API_KEY=${LITELLM_PROXY_API_KEY:-}
+      - LITELLM_PROXY_API_BASE=${LITELLM_PROXY_API_BASE:-}
+      - REASONING_THINK_RM=${REASONING_THINK_RM:-false}
+      
+      # Data Science Configuration
+      - DS_LOCAL_DATA_PATH=/app/data
+      - DS_IF_USING_MLE_DATA=true
+    volumes:
+      # Mount project source (for development)
+      - .:/app
+      # Mount Docker socket for RD-Agent Docker execution
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Data volume for competitions
+      - rdagent-data:/app/data
+      # Logs volume
+      - rdagent-logs:/app/log
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      - redis
+    networks:
+      - rdagent-network
+
+  # RD-Agent UI (Monitoring Dashboard)
+  rdagent-ui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: rdagent-ui
+    ports:
+      - "19899:19899"
+    environment:
+      - RD_AGENT_LOG_LEVEL=INFO
+    volumes:
+      - .:/app
+      - rdagent-logs:/app/log
+    command: ["python", "-m", "rdagent.app.cli", "ui", "--port", "19899", "--log_dir", "log/", "--host", "0.0.0.0"]
+    restart: unless-stopped
+    depends_on:
+      - rdagent-gateway
+    networks:
+      - rdagent-network
+
+  # Redis (for caching and session management)
+  redis:
+    image: redis:7-alpine
+    container_name: rdagent-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - rdagent-network
+
+  # Nginx (Reverse Proxy and Load Balancer)
+  nginx:
+    image: nginx:alpine
+    container_name: rdagent-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - nginx-logs:/var/log/nginx
+    restart: unless-stopped
+    depends_on:
+      - rdagent-gateway
+      - rdagent-ui
+    networks:
+      - rdagent-network
+
+  # LiteLLM Proxy (Optional - for LLM aggregation)
+  litellm-proxy:
+    image: ghcr.io/berriai/litellm:main-latest
+    container_name: rdagent-litellm
+    ports:
+      - "4000:4000"
+    environment:
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY:-sk-1234}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+    volumes:
+      - ./docker/litellm/config.yaml:/app/config.yaml:ro
+    command: ["--config", "/app/config.yaml", "--host", "0.0.0.0", "--port", "4000"]
+    restart: unless-stopped
+    profiles:
+      - litellm
+    networks:
+      - rdagent-network
+
+  # Prometheus (Monitoring)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: rdagent-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    profiles:
+      - monitoring
+    networks:
+      - rdagent-network
+
+  # Grafana (Monitoring Dashboard)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: rdagent-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+    restart: unless-stopped
+    profiles:
+      - monitoring
+    depends_on:
+      - prometheus
+    networks:
+      - rdagent-network
+
+volumes:
+  rdagent-data:
+    driver: local
+  rdagent-logs:
+    driver: local
+  redis-data:
+    driver: local
+  nginx-logs:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+networks:
+  rdagent-network:
+    driver: bridge

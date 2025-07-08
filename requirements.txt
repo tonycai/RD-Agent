@@ -66,3 +66,5 @@ genson
 mlflow
 azureml-mlflow
 types-pytz
+fastapi
+uvicorn

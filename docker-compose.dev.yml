@@ -1,0 +1,47 @@
+# Development-specific Docker Compose configuration
+version: '3.8'
+
+services:
+  rdagent-gateway:
+    build:
+      target: development
+    environment:
+      # Development settings
+      - RD_AGENT_DEBUG=true
+      - RD_AGENT_LOG_LEVEL=DEBUG
+      - RD_AGENT_AUTH_ENABLED=false
+      - RD_AGENT_CORS_ORIGINS=*
+    volumes:
+      # Mount source code for live reload
+      - .:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+      - rdagent-data:/app/data
+      - rdagent-logs:/app/log
+    command: ["uvicorn", "rdagent.app.gateway.main_new:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  rdagent-ui:
+    environment:
+      - RD_AGENT_LOG_LEVEL=DEBUG
+    volumes:
+      - .:/app
+      - rdagent-logs:/app/log
+
+  # Development database (SQLite alternative to production setup)
+  db-dev:
+    image: postgres:15-alpine
+    container_name: rdagent-db-dev
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=rdagent_dev
+      - POSTGRES_USER=rdagent
+      - POSTGRES_PASSWORD=devpassword
+    volumes:
+      - postgres-dev-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - rdagent-network
+
+volumes:
+  postgres-dev-data:
+    driver: local

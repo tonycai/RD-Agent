@@ -155,6 +155,7 @@ class DataScienceRDLoop(RDLoop):
         exp = await self.exp_gen.async_gen(self.trace, self)
 
         logger.log_object(exp)
+        yield exp
         return exp
 
     def coding(self, prev_out: dict[str, Any]):
@@ -178,6 +179,7 @@ class DataScienceRDLoop(RDLoop):
                     raise NotImplementedError(f"Unsupported component in DataScienceRDLoop: {exp.hypothesis.component}")
             exp.sub_tasks = []
         logger.log_object(exp)
+        yield exp
         return exp
 
     def running(self, prev_out: dict[str, Any]):
@@ -188,6 +190,7 @@ class DataScienceRDLoop(RDLoop):
             exp = new_exp
         if DS_RD_SETTING.enable_doc_dev:
             self.docdev.develop(exp)
+        yield exp
         return exp
 
     def feedback(self, prev_out: dict[str, Any]) -> ExperimentFeedback:
@@ -212,6 +215,7 @@ class DataScienceRDLoop(RDLoop):
                 decision=True,
             )
         logger.log_object(feedback)
+        yield feedback
         return feedback
 
     def record(self, prev_out: dict[str, Any]):
@@ -342,6 +346,7 @@ class DataScienceRDLoop(RDLoop):
                 mid_workspace_tar_path, Path(DS_RD_SETTING.log_archive_path) / "mid_workspace_bak.tar"
             )  # backup when upper code line is killed when running
             self.timer.add_duration(datetime.now() - start_archive_datetime)
+        yield self.trace
 
     @classmethod
     def load(

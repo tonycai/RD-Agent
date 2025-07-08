@@ -1,0 +1,157 @@
+# Docker-related Makefile targets for RD-Agent
+
+.PHONY: docker-build docker-up docker-down docker-logs docker-clean help
+
+# Default environment
+ENV ?= dev
+
+# Docker Compose files
+COMPOSE_FILES = -f docker-compose.yml
+ifeq ($(ENV),dev)
+    COMPOSE_FILES += -f docker-compose.dev.yml
+else ifeq ($(ENV),prod)
+    COMPOSE_FILES += -f docker-compose.prod.yml
+endif
+
+# Help target
+help:
+	@echo "RD-Agent Docker Commands:"
+	@echo ""
+	@echo "  docker-build       Build all Docker images"
+	@echo "  docker-up          Start all services"
+	@echo "  docker-down        Stop all services"
+	@echo "  docker-logs        View logs from all services"
+	@echo "  docker-clean       Remove all containers, images, and volumes"
+	@echo ""
+	@echo "  Environment-specific commands:"
+	@echo "  docker-up-dev      Start development environment"
+	@echo "  docker-up-prod     Start production environment"
+	@echo "  docker-up-minimal  Start minimal environment (gateway only)"
+	@echo ""
+	@echo "  Service-specific commands:"
+	@echo "  docker-gateway     Start only the gateway"
+	@echo "  docker-ui          Start only the UI"
+	@echo "  docker-monitoring  Start monitoring stack"
+	@echo ""
+	@echo "  Utility commands:"
+	@echo "  docker-health      Check health of all services"
+	@echo "  docker-shell       Get shell access to gateway container"
+	@echo "  docker-test        Run tests in container"
+
+# Build images
+docker-build:
+	docker-compose $(COMPOSE_FILES) build
+
+docker-build-no-cache:
+	docker-compose $(COMPOSE_FILES) build --no-cache
+
+# Start services
+docker-up:
+	docker-compose $(COMPOSE_FILES) up -d
+
+docker-up-dev:
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+
+docker-up-prod:
+	docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+docker-up-minimal:
+	docker-compose -f docker-compose.minimal.yml up -d
+
+# Start with monitoring
+docker-up-monitoring:
+	docker-compose $(COMPOSE_FILES) --profile monitoring up -d
+
+# Start with LiteLLM
+docker-up-litellm:
+	docker-compose $(COMPOSE_FILES) --profile litellm up -d
+
+# Stop services
+docker-down:
+	docker-compose $(COMPOSE_FILES) down
+
+docker-down-all:
+	docker-compose $(COMPOSE_FILES) --profile monitoring --profile litellm down
+
+# Logs
+docker-logs:
+	docker-compose $(COMPOSE_FILES) logs -f
+
+docker-logs-gateway:
+	docker-compose $(COMPOSE_FILES) logs -f rdagent-gateway
+
+docker-logs-ui:
+	docker-compose $(COMPOSE_FILES) logs -f rdagent-ui
+
+# Individual services
+docker-gateway:
+	docker-compose $(COMPOSE_FILES) up -d rdagent-gateway
+
+docker-ui:
+	docker-compose $(COMPOSE_FILES) up -d rdagent-ui
+
+# Health checks
+docker-health:
+	@echo "Checking service health..."
+	@docker-compose $(COMPOSE_FILES) ps
+	@echo ""
+	@echo "Gateway health:"
+	@curl -s http://localhost:8000/health || echo "Gateway not responding"
+	@echo ""
+	@echo "UI health:"
+	@curl -s http://localhost:19899 || echo "UI not responding"
+
+# Shell access
+docker-shell:
+	docker-compose $(COMPOSE_FILES) exec rdagent-gateway /bin/bash
+
+docker-shell-ui:
+	docker-compose $(COMPOSE_FILES) exec rdagent-ui /bin/bash
+
+# Testing
+docker-test:
+	docker-compose $(COMPOSE_FILES) exec rdagent-gateway python -m pytest
+
+docker-test-offline:
+	docker-compose $(COMPOSE_FILES) exec rdagent-gateway python -m pytest -m "offline"
+
+# Maintenance
+docker-clean:
+	docker-compose $(COMPOSE_FILES) down -v --remove-orphans
+	docker system prune -f
+	docker volume prune -f
+
+docker-reset:
+	docker-compose $(COMPOSE_FILES) down -v --remove-orphans
+	docker-compose $(COMPOSE_FILES) build --no-cache
+	docker-compose $(COMPOSE_FILES) up -d
+
+# Backup (for production)
+docker-backup:
+	docker-compose $(COMPOSE_FILES) exec postgres pg_dump -U rdagent rdagent > backup_$(shell date +%Y%m%d_%H%M%S).sql
+
+# Update images
+docker-update:
+	docker-compose $(COMPOSE_FILES) pull
+	docker-compose $(COMPOSE_FILES) up -d
+
+# Environment setup
+setup-env:
+	@if [ ! -f .env ]; then \
+		echo "Creating .env file from template..."; \
+		cp .env.docker .env; \
+		echo "Please edit .env file with your configuration"; \
+	else \
+		echo ".env file already exists"; \
+	fi
+
+# Quick start
+quick-start: setup-env docker-build docker-up-dev
+	@echo ""
+	@echo "RD-Agent is starting up..."
+	@echo "Gateway will be available at: http://localhost:8000"
+	@echo "API docs will be available at: http://localhost:8000/docs"
+	@echo "UI will be available at: http://localhost:19899"
+	@echo ""
+	@echo "Use 'make docker-logs' to view logs"
+	@echo "Use 'make docker-health' to check service status"

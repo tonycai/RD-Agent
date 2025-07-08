@@ -179,7 +179,7 @@ class LoopBase:
             else:
                 logger.info(f"Timer remaining time: {self.timer.remain_time()}")
 
-    async def _run_step(self, li: int, force_subproc: bool = False) -> None:
+    async def _run_step(self, li: int, force_subproc: bool = False):
         """Execute a single step (next unrun step) in the workflow (async version with force_subproc option).
 
         Parameters
@@ -224,6 +224,7 @@ class LoopBase:
                             result = func(self.loop_prev_out[li])
                     # Store result in the nested dictionary
                     self.loop_prev_out[li][name] = result
+                    yield result
 
                     # Record the trace
                     end = datetime.datetime.now(datetime.timezone.utc)
@@ -286,7 +287,7 @@ class LoopBase:
             self.queue.put_nowait(li)  # the loop `li` has been kicked off, waiting for workers to pick it up
             self.loop_idx += 1
 
-    async def execute_loop(self) -> None:
+    async def execute_loop(self):
         while True:
             # 1) get the tasks to goon loop `li`
             li = await self.queue.get()
@@ -297,13 +298,15 @@ class LoopBase:
                 if self.step_idx[li] == len(self.steps) - 1:
                     # NOTE: assume the last step is record, it will be fast and affect the global environment
                     # if it is the last step, run it directly ()
-                    await self._run_step(li)
+                    async for result in self._run_step(li):
+                        yield result
                 else:
                     # await the step; parallel running happens here!
                     # Only trigger subprocess if we have more than one process.
-                    await self._run_step(li, force_subproc=RD_AGENT_SETTINGS.is_force_subproc())
+                    async for result in self._run_step(li, force_subproc=RD_AGENT_SETTINGS.is_force_subproc()):
+                        yield result
 
-    async def run(self, step_n: int | None = None, loop_n: int | None = None, all_duration: str | None = None) -> None:
+    async def run(self, step_n: int | None = None, loop_n: int | None = None, all_duration: str | None = None):
         """Run the workflow loop.
 
         Parameters
@@ -333,9 +336,10 @@ class LoopBase:
         while True:
             try:
                 # run one kickoff_loop and execute_loop
-                await asyncio.gather(
+                async for result in asyncio.gather(
                     self.kickoff_loop(), *[self.execute_loop() for _ in range(RD_AGENT_SETTINGS.get_max_parallel())]
-                )
+                ):
+                    yield result
                 break
             except self.LoopResumeError as e:
                 logger.warning(f"Stop all the routines and resume loop: {e}")
