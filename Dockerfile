@@ -76,6 +76,9 @@ COPY pyproject.toml .
 COPY README.md .
 COPY LICENSE .
 
+# Set version for setuptools-scm
+ENV SETUPTOOLS_SCM_PRETEND_VERSION_FOR_RDAGENT=0.1.0
+
 # Install the package
 RUN pip install --no-cache-dir .
 

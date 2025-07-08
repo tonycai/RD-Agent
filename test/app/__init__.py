@@ -1,0 +1,1 @@
+# Test package for RD-Agent app components

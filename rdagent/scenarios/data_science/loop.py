@@ -156,7 +156,6 @@ class DataScienceRDLoop(RDLoop):
 
         logger.log_object(exp)
         yield exp
-        return exp
 
     def coding(self, prev_out: dict[str, Any]):
         exp = prev_out["direct_exp_gen"]
@@ -180,7 +179,6 @@ class DataScienceRDLoop(RDLoop):
             exp.sub_tasks = []
         logger.log_object(exp)
         yield exp
-        return exp
 
     def running(self, prev_out: dict[str, Any]):
         exp: DSExperiment = prev_out["coding"]
@@ -191,7 +189,6 @@ class DataScienceRDLoop(RDLoop):
         if DS_RD_SETTING.enable_doc_dev:
             self.docdev.develop(exp)
         yield exp
-        return exp
 
     def feedback(self, prev_out: dict[str, Any]) -> ExperimentFeedback:
         """
@@ -216,7 +213,6 @@ class DataScienceRDLoop(RDLoop):
             )
         logger.log_object(feedback)
         yield feedback
-        return feedback
 
     def record(self, prev_out: dict[str, Any]):
 

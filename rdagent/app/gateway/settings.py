@@ -2,7 +2,8 @@
 
 import os
 from typing import Dict, List, Optional
-from pydantic import BaseSettings, Field
+from pydantic import Field
+from pydantic_settings import BaseSettings
 import logging
 
 logger = logging.getLogger(__name__)
@@ -56,6 +57,7 @@ class GatewaySettings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
+        extra = "ignore"
 
 
 class ScenarioConfig:

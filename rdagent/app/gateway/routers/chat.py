@@ -16,7 +16,7 @@ from ..models.base import model_manager
 router = APIRouter()
 
 
-@router.post("/v1/chat/completions")
+@router.post("/v1/chat/completions", response_model=None)
 async def chat_completions(
     request: RDAgentChatCompletionRequest,
     user: Optional[str] = Depends(get_current_user)

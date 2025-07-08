@@ -7,10 +7,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: gateway
+      target: production
     container_name: rdagent-gateway-minimal
     ports:
-      - "8000:8000"
+      - "8001:8000"
     environment:
       - RD_AGENT_HOST=0.0.0.0
       - RD_AGENT_PORT=8000
