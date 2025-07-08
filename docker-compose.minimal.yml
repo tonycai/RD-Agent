@@ -23,6 +23,9 @@ services:
       - KAGGLE_USERNAME=${KAGGLE_USERNAME:-}
       - KAGGLE_KEY=${KAGGLE_KEY:-}
     restart: unless-stopped
+    volumes:
+      - ./rdagent/scenarios/qlib/experiment/factor_data_template:/workspace/qlib_workspace
+      - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s

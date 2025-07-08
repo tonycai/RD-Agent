@@ -106,8 +106,8 @@ select = ["ALL"]
 "docs/conf.py" = ["INP001"]
 "test/*" = ["S101"]
 
-[tool.setuptools]
-packages = ["rdagent"]
+[tool.setuptools.packages.find]
+include = ["rdagent*"]
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}

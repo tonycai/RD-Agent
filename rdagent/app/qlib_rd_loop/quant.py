@@ -130,7 +130,11 @@ def main(path=None, step_n=None, loop_n=None, all_duration=None, checkout=True):
     else:
         quant_loop = QuantRDLoop.load(path, checkout=checkout)
 
-    asyncio.run(quant_loop.run(step_n=step_n, loop_n=loop_n, all_duration=all_duration))
+    async def run_loop():
+        async for result in quant_loop.run(step_n=step_n, loop_n=loop_n, all_duration=all_duration):
+            pass  # Process results as needed
+    
+    asyncio.run(run_loop())
 
 
 if __name__ == "__main__":

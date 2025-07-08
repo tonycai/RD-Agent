@@ -70,14 +70,10 @@ CMD ["uvicorn", "rdagent.app.gateway.main_new:app", "--host", "0.0.0.0", "--port
 # Production stage
 FROM base as production
 
-# Copy only necessary files
-COPY rdagent/ rdagent/
-COPY pyproject.toml .
-COPY README.md .
-COPY LICENSE .
+RUN (getent group 999 || groupadd -g 999 docker) && usermod -aG 999 appuser && usermod -aG docker appuser
 
-# Set version for setuptools-scm
-ENV SETUPTOOLS_SCM_PRETEND_VERSION_FOR_RDAGENT=0.1.0
+
+COPY . .
 
 # Install the package
 RUN pip install --no-cache-dir .

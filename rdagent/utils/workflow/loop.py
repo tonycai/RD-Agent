@@ -283,7 +283,8 @@ class LoopBase:
             if self.step_idx[li] == 0:
                 # Assume the first step is ExpGen
                 # Only kick off ExpGen when it is never kicked off before
-                await self._run_step(li)
+                async for _ in self._run_step(li):
+                    pass
             self.queue.put_nowait(li)  # the loop `li` has been kicked off, waiting for workers to pick it up
             self.loop_idx += 1
 
@@ -335,11 +336,20 @@ class LoopBase:
 
         while True:
             try:
-                # run one kickoff_loop and execute_loop
-                async for result in asyncio.gather(
-                    self.kickoff_loop(), *[self.execute_loop() for _ in range(RD_AGENT_SETTINGS.get_max_parallel())]
-                ):
-                    yield result
+                # run one kickoff_loop and execute_loop with proper async generator handling
+                async def consume_execute_loop():
+                    results = []
+                    async for result in self.execute_loop():
+                        results.append(result)
+                    return results
+                
+                tasks = [
+                    asyncio.create_task(self.kickoff_loop()),
+                    *[asyncio.create_task(consume_execute_loop()) for _ in range(RD_AGENT_SETTINGS.get_max_parallel())]
+                ]
+                
+                result = await asyncio.gather(*tasks)
+                yield result
                 break
             except self.LoopResumeError as e:
                 logger.warning(f"Stop all the routines and resume loop: {e}")
