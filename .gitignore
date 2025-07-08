@@ -7,6 +7,15 @@ release-notes.md
 typescript*
 .mcp.json
 
+# Sensitive data - DO NOT COMMIT
+.env
+kaggle.json
+**/kaggle.json
+ds_data/
+*api_key*
+*secret*
+*password*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
