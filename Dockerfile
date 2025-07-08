@@ -105,10 +105,11 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Install minimal system dependencies
+# Install minimal system dependencies including Kaggle CLI
 RUN apt-get update && apt-get install -y \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir kaggle
 
 # Create app user
 RUN groupadd --gid 1000 appuser && \
@@ -133,8 +134,11 @@ COPY rdagent/app/__init__.py rdagent/app/
 # Create minimal __init__.py files
 RUN touch rdagent/app/gateway/__init__.py
 
+# Create Kaggle config directory and zip files directory
+RUN mkdir -p /home/appuser/.config/kaggle /zip_files
+
 # Change ownership to appuser
-RUN chown -R appuser:appuser /app
+RUN chown -R appuser:appuser /app /home/appuser /zip_files
 
 USER appuser
 

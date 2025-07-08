@@ -1,6 +1,4 @@
 # Minimal Docker Compose configuration for quick testing
-version: '3.8'
-
 services:
   # Gateway only (no UI, monitoring, etc.)
   rdagent-gateway:
@@ -17,9 +15,13 @@ services:
       - RD_AGENT_DEBUG=false
       - RD_AGENT_AUTH_ENABLED=false
       - RD_AGENT_LOG_LEVEL=INFO
+      - RD_AGENT_DEFAULT_SCENARIO=data_science
+      - RD_AGENT_DEFAULT_COMPETITION=titanic
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - CHAT_MODEL=${CHAT_MODEL:-gpt-4o}
       - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-small}
+      - KAGGLE_USERNAME=${KAGGLE_USERNAME:-}
+      - KAGGLE_KEY=${KAGGLE_KEY:-}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
